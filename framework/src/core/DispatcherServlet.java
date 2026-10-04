@@ -31,44 +31,6 @@ public class DispatcherServlet extends HttpServlet {
         System.out.println("DispatcherServlet initialisé, " + map.size() + " route(s) chargée(s).");
     }
 
-    // private String toJson(Object obj) {
-    // if (obj == null)
-    // return "null";
-    // if (obj instanceof String)
-    // return "\"" + obj + "\"";
-    // if (obj instanceof Number || obj instanceof Boolean)
-    // return obj.toString();
-
-    // // Objet — on lit les getters par réflexion
-    // StringBuilder sb = new StringBuilder("{");
-    // boolean first = true;
-
-    // for (java.lang.reflect.Method m : obj.getClass().getMethods()) {
-    // String name = m.getName();
-    // if ((name.startsWith("get") && !name.equals("getClass") &&
-    // m.getParameterCount() == 0)
-    // || (name.startsWith("is") && m.getParameterCount() == 0)) {
-
-    // String fieldName = name.startsWith("is")
-    // ? Character.toLowerCase(name.charAt(2)) + name.substring(3)
-    // : Character.toLowerCase(name.charAt(3)) + name.substring(4);
-
-    // try {
-    // Object value = m.invoke(obj);
-    // if (!first)
-    // sb.append(",");
-    // sb.append("\"").append(fieldName).append("\":");
-    // sb.append(toJson(value));
-    // first = false;
-    // } catch (Exception ignored) {
-    // }
-    // }
-    // }
-
-    // sb.append("}");
-    // return sb.toString();
-    // }
-
     public void affichage(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
