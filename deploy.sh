@@ -12,7 +12,7 @@ APP_DIR="."
 APP_LIB="./WEB-INF/lib"
 APP_CLASSES="./WEB-INF/classes"
 
-TOMCAT_HOME="/home/aina/Documents/ITU/S3/TOMCAT"
+TOMCAT_HOME="/home/giovanni/Documents/apache-tomcat-10.1.24"
 DEPLOY_DIR="$TOMCAT_HOME/webapps/app-test"
 
 JAVA_HOME=$(dirname $(dirname $(readlink -f $(which javac))))
@@ -44,8 +44,11 @@ if [ ! -s sources.txt ]; then
     rm -f sources.txt
     exit 1
 fi
+
+GSON_JAR="$APP_LIB/gson-2.11.0.jar"
+
 javac \
--cp "$APP_LIB/$JAR_NAME:$TOMCAT_HOME/lib/servlet-api.jar" \
+-cp "$APP_LIB/$JAR_NAME:$GSON_JAR:$TOMCAT_HOME/lib/*" \
 -d "$APP_CLASSES" \
 @sources.txt
 

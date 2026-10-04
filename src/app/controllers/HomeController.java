@@ -4,12 +4,13 @@ import java.io.IOException;
 
 import annotation.Controller;
 import annotation.UrlMapping;
+import annotation.WebApi;
+import app.models.User;
 import jakarta.servlet.http.*;
 import utils.ModelAndView;
 
 @Controller
 public class HomeController {
-
 
     @UrlMapping(url = "/home", method = "GET")
     public void homes(HttpServletRequest req, HttpServletResponse resp) throws IOException {
@@ -26,5 +27,17 @@ public class HomeController {
         ModelAndView modelAndView = new ModelAndView("index");
         modelAndView.addAttribute("message", "Bonjour depuis le contrôleur !");
         return modelAndView;
+    }
+
+    @UrlMapping(url = "/api/hello")
+    @WebApi
+    public String hello() {
+        return "Bonjour depuis l'API";
+    }
+
+    @UrlMapping(url = "/api/user")
+    @WebApi
+    public User getUser() {
+        return new User("Giovanni", "giovanni@itu.mg");
     }
 }
