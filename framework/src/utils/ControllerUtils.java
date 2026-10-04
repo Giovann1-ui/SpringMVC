@@ -17,13 +17,13 @@ public class ControllerUtils {
         try {
             String packagePath = packageName.replace('.', '/');
             ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
-            java.net.URL resource = classLoader.getResource(packagePath);
+            java.net.URL ressource = classLoader.getResource(packagePath);
 
-            if (resource == null) {
+            if (ressource == null) {
                 System.out.println("Le package " + packageName + " est introuvable (ressource vide).");
                 return controllerClasses;
             }
-            java.io.File directory = new java.io.File(resource.toURI());
+            java.io.File directory = new java.io.File(ressource.toURI());
 
             if (directory.exists() && directory.isDirectory()) {
                 java.io.File[] files = directory.listFiles();
@@ -52,12 +52,17 @@ public class ControllerUtils {
         List<Class<?>> allClasses = getFiles(packageName);
 
         for (Class<?> clazz : allClasses) {
-            if (clazz.isAnnotationPresent(annotation.Controller.class)) {
+            if (clazz.isAnnotationPresent(annotation.Controller.class)
+                    || clazz.isAnnotationPresent(annotation.WebApi.class)) {
                 controllerClasses.add(clazz);
             }
         }
 
         return controllerClasses;
+    }
+
+    public static boolean isWebApi(Method m) {
+        return m.isAnnotationPresent(annotation.WebApi.class);
     }
 
     // =========================

@@ -11,12 +11,12 @@ import dto.UrlMappingDTO;
 import utils.ModelAndView;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.*;
+import com.google.gson.Gson;
 
 public class DispatcherServlet extends HttpServlet {
     List<Class<?>> controllerClasses = new ArrayList<>();
     Map<UrlMappingDTO, ControllerResultDTO> map;
 
-    
     @Override
     @SuppressWarnings("unchecked")
     public void init() throws ServletException {
@@ -31,10 +31,46 @@ public class DispatcherServlet extends HttpServlet {
         System.out.println("DispatcherServlet initialisé, " + map.size() + " route(s) chargée(s).");
     }
 
+    // private String toJson(Object obj) {
+    // if (obj == null)
+    // return "null";
+    // if (obj instanceof String)
+    // return "\"" + obj + "\"";
+    // if (obj instanceof Number || obj instanceof Boolean)
+    // return obj.toString();
+
+    // // Objet — on lit les getters par réflexion
+    // StringBuilder sb = new StringBuilder("{");
+    // boolean first = true;
+
+    // for (java.lang.reflect.Method m : obj.getClass().getMethods()) {
+    // String name = m.getName();
+    // if ((name.startsWith("get") && !name.equals("getClass") &&
+    // m.getParameterCount() == 0)
+    // || (name.startsWith("is") && m.getParameterCount() == 0)) {
+
+    // String fieldName = name.startsWith("is")
+    // ? Character.toLowerCase(name.charAt(2)) + name.substring(3)
+    // : Character.toLowerCase(name.charAt(3)) + name.substring(4);
+
+    // try {
+    // Object value = m.invoke(obj);
+    // if (!first)
+    // sb.append(",");
+    // sb.append("\"").append(fieldName).append("\":");
+    // sb.append(toJson(value));
+    // first = false;
+    // } catch (Exception ignored) {
+    // }
+    // }
+    // }
+
+    // sb.append("}");
+    // return sb.toString();
+    // }
+
     public void affichage(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-
-        response.setContentType("text/plain");
 
         String path = request.getPathInfo();
 
@@ -60,46 +96,56 @@ public class DispatcherServlet extends HttpServlet {
             Method method = found.getMethod();
             Class<?> controllerClasse = found.getClasse();
 
-            response.getWriter().println("=== ROUTE TROUVEE ===");
-            response.getWriter().println("URL : " + path);
-            response.getWriter().println("HTTP : " + httpMethod);
-            response.getWriter().println("Controller : " + controllerClasse.getName());
-            response.getWriter().println("Méthode Java : " + method.getName());
-            response.getWriter().println();
+            try {
+                Object controllerInstance = controllerClasse.getDeclaredConstructor().newInstance();
 
-            // Une méthode "simple" (sans paramètre HttpServletRequest/
-            // HttpServletResponse) est réellement exécutée par réflexion,
-            // et son résultat est affiché.
-            if (method.getParameterCount() == 0) {
+                if (method.getParameterCount() == 0) {
 
-                try {
-                    Object controllerInstance = controllerClasse.getDeclaredConstructor().newInstance();
                     Object result = method.invoke(controllerInstance);
 
-if (result instanceof ModelAndView) {
-    ModelAndView mv = (ModelAndView) result;
+                    // Retour ModelAndView — forward vers JSP
+                    if (result instanceof ModelAndView) {
+                        ModelAndView mv = (ModelAndView) result;
 
-    // Ne pas forward si la réponse est déjà commitée (println() plus haut)
-    if (response.isCommitted()) {
-        throw new ServletException("Impossible de forward : la réponse est déjà commitée");
-    }
-    response.resetBuffer();
-    response.setContentType("text/html;charset=UTF-8");
+                        if (response.isCommitted()) {
+                            throw new ServletException("Impossible de forward : la réponse est déjà commitée");
+                        }
 
-    String nomPackage = (String) getServletContext().getInitParameter("pafSource");
-    String nomExtension = (String) getServletContext().getInitParameter("extension");
-    String view = "/" + nomPackage + mv.getView() + nomExtension;
-    Map<String, Object> attributes = mv.getAttributes();
+                        response.resetBuffer();
+                        response.setContentType("text/html;charset=UTF-8");
 
-    if (attributes != null) {
-        for (Map.Entry<String, Object> entry : attributes.entrySet()) {
-            request.setAttribute(entry.getKey(), entry.getValue());
-        }
-    }
-    request.getRequestDispatcher(view).forward(request, response);
-    return;
-}
+                        String nomPackage = (String) getServletContext().getInitParameter("pafSource");
+                        String nomExtension = (String) getServletContext().getInitParameter("extension");
+                        String view = "/" + nomPackage + mv.getView() + nomExtension;
 
+                        Map<String, Object> attributes = mv.getAttributes();
+                        if (attributes != null) {
+                            for (Map.Entry<String, Object> entry : attributes.entrySet()) {
+                                request.setAttribute(entry.getKey(), entry.getValue());
+                            }
+                        }
+
+                        request.getRequestDispatcher(view).forward(request, response);
+                        return;
+                    }
+
+                    // Retour JSON — contrôleur @WebApi sans paramètre
+                    if (utils.ControllerUtils.isWebApi(method)) {
+                        response.setContentType("application/json;charset=UTF-8");
+                        Gson gson = new Gson();
+                        String json = gson.toJson(result);
+                        response.getWriter().println(json);
+                        return;
+                    }
+
+                    // Retour texte simple — contrôleur @Controller
+                    response.setContentType("text/plain");
+                    response.getWriter().println("=== ROUTE TROUVEE ===");
+                    response.getWriter().println("URL : " + path);
+                    response.getWriter().println("HTTP : " + httpMethod);
+                    response.getWriter().println("Controller : " + controllerClasse.getName());
+                    response.getWriter().println("Méthode Java : " + method.getName());
+                    response.getWriter().println();
                     response.getWriter().println("=== RESULTAT DE L'EXECUTION ===");
 
                     if (method.getReturnType().equals(Void.TYPE)) {
@@ -108,15 +154,16 @@ if (result instanceof ModelAndView) {
                         response.getWriter().println(String.valueOf(result));
                     }
 
-                } catch (Exception e) {
-                    response.getWriter().println("=== ERREUR D'EXECUTION ===");
-                    response.getWriter().println(e.getCause() != null ? e.getCause().toString() : e.toString());
+                } else {
+                    response.setContentType("text/plain");
+                    response.getWriter().println("=== ERREUR ===");
+                    response.getWriter().println("Signature non supportée : " + method.getName());
                 }
 
-            } else {
-                // Méthode avec paramètres (ex: HttpServletRequest, HttpServletResponse)
-                // : exécution non gérée par cette voie.
-                response.getWriter().println("(méthode avec paramètres : exécution non gérée par cette voie)");
+            } catch (Exception e) {
+                response.setContentType("text/plain");
+                response.getWriter().println("=== ERREUR D'EXECUTION ===");
+                response.getWriter().println(e.getCause() != null ? e.getCause().toString() : e.toString());
             }
 
             return;
@@ -125,8 +172,9 @@ if (result instanceof ModelAndView) {
         // =========================
         // URL INCONNUE
         // =========================
+        response.setContentType("text/plain");
         response.setStatus(HttpServletResponse.SC_NOT_FOUND);
-        response.getWriter().println("❌ Route introuvable");
+        response.getWriter().println("Route introuvable");
         response.getWriter().println("URL : " + path);
         response.getWriter().println("HTTP : " + httpMethod);
         response.getWriter().println();
