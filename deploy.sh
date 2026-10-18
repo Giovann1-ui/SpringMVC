@@ -45,10 +45,8 @@ if [ ! -s sources.txt ]; then
     exit 1
 fi
 
-GSON_JAR="$APP_LIB/gson-2.11.0.jar"
-
 javac \
--cp "$APP_LIB/$JAR_NAME:$GSON_JAR:$TOMCAT_HOME/lib/*" \
+-cp "$APP_LIB/*:$TOMCAT_HOME/lib/*" \
 -d "$APP_CLASSES" \
 @sources.txt
 

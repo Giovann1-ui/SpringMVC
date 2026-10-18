@@ -1,4 +1,4 @@
-<% String nom=(String) request.getAttribute("message"); %>
+<% String nom=(String) request.getAttribute("message1"); %>
 
     <!DOCTYPE html>
     <html lang="en">
