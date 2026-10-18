@@ -15,6 +15,10 @@ public class UserModel {
     @Column(name = "password")
     private String password;
 
+    @ManyToOne
+    @JoinColumn(name = "adresse_id")
+    private AdresseModel adresse;
+
     public Long getId() {
         return id;
     }
@@ -39,9 +43,18 @@ public class UserModel {
         this.username = username;
     }
 
-    public UserModel(String username, String password) {
+    public AdresseModel getAdresse() {
+        return adresse;
+    }
+
+    public void setAdresse(AdresseModel adresse) {
+        this.adresse = adresse;
+    }
+
+    public UserModel(String username, String password, AdresseModel adresse) {
         this.username = username;
         this.password = password;
+        this.adresse = adresse;
     }
 
     public UserModel() {
