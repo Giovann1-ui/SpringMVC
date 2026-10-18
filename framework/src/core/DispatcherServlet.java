@@ -16,16 +16,18 @@ import com.google.gson.Gson;
 public class DispatcherServlet extends HttpServlet {
     List<Class<?>> controllerClasses = new ArrayList<>();
     Map<UrlMappingDTO, ControllerResultDTO> map;
+    Map<Class<?>, Object> controllerInstances;
 
     @Override
     @SuppressWarnings("unchecked")
     public void init() throws ServletException {
         map = (Map<UrlMappingDTO, ControllerResultDTO>) getServletContext().getAttribute("urlMap");
         controllerClasses = (List<Class<?>>) getServletContext().getAttribute("controllerClasses");
+        controllerInstances = (Map<Class<?>, Object>) getServletContext().getAttribute("controllerInstances");
 
-        if (map == null || controllerClasses == null) {
+        if (map == null || controllerClasses == null || controllerInstances == null) {
             throw new ServletException(
-                    "urlMap ou controllerClasses non initialisés — AppListener a-t-il bien démarré ?");
+                    "urlMap, controllerClasses ou controllerInstances non initialisés — AppListener a-t-il bien démarré ?");
         }
 
         System.out.println("DispatcherServlet initialisé, " + map.size() + " route(s) chargée(s).");
@@ -59,67 +61,59 @@ public class DispatcherServlet extends HttpServlet {
             Class<?> controllerClasse = found.getClasse();
 
             try {
-                Object controllerInstance = controllerClasse.getDeclaredConstructor().newInstance();
+                Object controllerInstance = controllerInstances.get(controllerClasse);
 
-                if (method.getParameterCount() == 0) {
+                Object[] args = utils.ControllerUtils.buildArguments(method, request, response);
+                Object result = method.invoke(controllerInstance, args);
+                // Retour ModelAndView — forward vers JSP
+                if (result instanceof ModelAndView) {
+                    ModelAndView mv = (ModelAndView) result;
 
-                    Object result = method.invoke(controllerInstance);
+                    if (response.isCommitted()) {
+                        throw new ServletException("Impossible de forward : la réponse est déjà commitée");
+                    }
 
-                    // Retour ModelAndView — forward vers JSP
-                    if (result instanceof ModelAndView) {
-                        ModelAndView mv = (ModelAndView) result;
+                    response.resetBuffer();
+                    response.setContentType("text/html;charset=UTF-8");
 
-                        if (response.isCommitted()) {
-                            throw new ServletException("Impossible de forward : la réponse est déjà commitée");
+                    String nomPackage = (String) getServletContext().getInitParameter("pafSource");
+                    String nomExtension = (String) getServletContext().getInitParameter("extension");
+                    String view = "/" + nomPackage + mv.getView() + nomExtension;
+
+                    Map<String, Object> attributes = mv.getAttributes();
+                    if (attributes != null) {
+                        for (Map.Entry<String, Object> entry : attributes.entrySet()) {
+                            request.setAttribute(entry.getKey(), entry.getValue());
                         }
-
-                        response.resetBuffer();
-                        response.setContentType("text/html;charset=UTF-8");
-
-                        String nomPackage = (String) getServletContext().getInitParameter("pafSource");
-                        String nomExtension = (String) getServletContext().getInitParameter("extension");
-                        String view = "/" + nomPackage + mv.getView() + nomExtension;
-
-                        Map<String, Object> attributes = mv.getAttributes();
-                        if (attributes != null) {
-                            for (Map.Entry<String, Object> entry : attributes.entrySet()) {
-                                request.setAttribute(entry.getKey(), entry.getValue());
-                            }
-                        }
-
-                        request.getRequestDispatcher(view).forward(request, response);
-                        return;
                     }
 
-                    // Retour JSON — contrôleur @WebApi sans paramètre
-                    if (utils.ControllerUtils.isWebApi(method)) {
-                        response.setContentType("application/json;charset=UTF-8");
-                        Gson gson = new Gson();
-                        String json = gson.toJson(result);
-                        response.getWriter().println(json);
-                        return;
-                    }
+                    request.getRequestDispatcher(view).forward(request, response);
+                    return;
+                }
 
-                    // Retour texte simple — contrôleur @Controller
-                    response.setContentType("text/plain");
-                    response.getWriter().println("=== ROUTE TROUVEE ===");
-                    response.getWriter().println("URL : " + path);
-                    response.getWriter().println("HTTP : " + httpMethod);
-                    response.getWriter().println("Controller : " + controllerClasse.getName());
-                    response.getWriter().println("Méthode Java : " + method.getName());
-                    response.getWriter().println();
-                    response.getWriter().println("=== RESULTAT DE L'EXECUTION ===");
+                // Retour JSON — contrôleur @WebApi sans paramètre
+                if (utils.ControllerUtils.isWebApi(method)) {
+                    response.setContentType("application/json;charset=UTF-8");
+                    Gson gson = new Gson();
+                    String json = gson.toJson(result);
+                    response.getWriter().println(json);
+                    return;
+                }
 
-                    if (method.getReturnType().equals(Void.TYPE)) {
-                        response.getWriter().println("(méthode void exécutée avec succès)");
-                    } else {
-                        response.getWriter().println(String.valueOf(result));
-                    }
+                // Retour texte simple — contrôleur @Controller
+                response.setContentType("text/plain");
+                response.getWriter().println("=== ROUTE TROUVEE ===");
+                response.getWriter().println("URL : " + path);
+                response.getWriter().println("HTTP : " + httpMethod);
+                response.getWriter().println("Controller : " + controllerClasse.getName());
+                response.getWriter().println("Méthode Java : " + method.getName());
+                response.getWriter().println();
+                response.getWriter().println("=== RESULTAT DE L'EXECUTION ===");
 
+                if (method.getReturnType().equals(Void.TYPE)) {
+                    response.getWriter().println("(méthode void exécutée avec succès)");
                 } else {
-                    response.setContentType("text/plain");
-                    response.getWriter().println("=== ERREUR ===");
-                    response.getWriter().println("Signature non supportée : " + method.getName());
+                    response.getWriter().println(String.valueOf(result));
                 }
 
             } catch (Exception e) {
