@@ -1,6 +1,7 @@
 package app.service;
 
 import app.model.UserModel;
+import app.model.AdresseModel;
 import app.repository.UserRepository;
 import org.springframework.stereotype.Service;
 import annotation.Injection;
@@ -14,9 +15,11 @@ public class UserService {
         this.userRepository = userRepository;
     }
 
-    public UserModel createUser(String username, String email) {
+    public UserModel createUser(String username, String password, AdresseModel adresse) {
         UserModel user = new UserModel();
         user.setUsername(username);
+        user.setPassword(password);
+        user.setAdresse(adresse);
         return userRepository.save(user);
     }
 

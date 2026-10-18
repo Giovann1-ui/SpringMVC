@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.lang.reflect.Field;
 
 import jakarta.servlet.http.*;
 
@@ -160,21 +161,29 @@ public class ControllerUtils {
             Parameter p = params[i];
             Class<?> type = p.getType();
 
-
-            if(params[i].isAnnotationPresent(annotation.Parameter.class)) {
-                annotation.Parameter paramAnnotation = params[i].getAnnotation(annotation.Parameter.class);
-                String paramName = paramAnnotation.value();
-                args[i] = convert(request.getParameter(paramName), type, paramName);
-            } else if (type == HttpServletRequest.class) {
+            if (type == HttpServletRequest.class) {
                 args[i] = request;
-            } else if (type == HttpServletResponse.class) {
+                continue;
+            }
+            if (type == HttpServletResponse.class) {
                 args[i] = response;
+                continue;
+            }
+
+            String name;
+            if (p.isAnnotationPresent(annotation.Parameter.class)) {
+                name = p.getAnnotation(annotation.Parameter.class).value();
+            } else if (p.isNamePresent()) {
+                name = p.getName();
             } else {
-                if (!p.isNamePresent()) {
-                    throw new IllegalStateException(
-                            "Nom de parametre introuvable : compiler avec javac -parameters");
-                }
-                args[i] = convert(request.getParameter(p.getName()), type, p.getName());
+                throw new IllegalStateException(
+                        "Nom de parametre introuvable : utiliser @Parameter ou compiler avec javac -parameters");
+            }
+
+            if (isSimpleType(type)) {
+                args[i] = convert(request.getParameter(name), type, name);
+            } else {
+                args[i] = buildObject(type, name, request);
             }
         }
         return args;
@@ -202,6 +211,51 @@ public class ControllerUtils {
             return Boolean.parseBoolean(raw);
 
         throw new IllegalArgumentException("Type non supporte : " + type.getSimpleName());
+    }
+
+    public static boolean isSimpleType(Class<?> type) {
+        return type.isPrimitive()
+                || type == String.class
+                || type == Integer.class || type == Long.class
+                || type == Double.class || type == Float.class
+                || type == Boolean.class;
+    }
+
+    public static Object buildObject(Class<?> type, String prefix, HttpServletRequest request) {
+        try {
+            Object obj = type.getDeclaredConstructor().newInstance();
+
+            for (Field field : type.getDeclaredFields()) {
+                String paramName = prefix + "." + field.getName();
+                field.setAccessible(true);
+
+                if (isSimpleType(field.getType())) {
+                    String raw = request.getParameter(paramName);
+                    if (raw == null || raw.isEmpty()) {
+                        continue;
+                    }
+                    field.set(obj, convert(raw, field.getType(), paramName));
+
+                } else if (hasParamWithPrefix(request, paramName)) {
+                    // objet imbrique : on se rappelle avec le prefixe allonge
+                    field.set(obj, buildObject(field.getType(), paramName, request));
+                }
+            }
+            return obj;
+
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("Impossible de creer " + type.getSimpleName()
+                    + " : il faut un constructeur sans argument", e);
+        }
+    }
+
+    private static boolean hasParamWithPrefix(HttpServletRequest request, String prefix) {
+        for (String key : request.getParameterMap().keySet()) {
+            if (key.startsWith(prefix + ".")) {
+                return true;
+            }
+        }
+        return false;
     }
 
 }
