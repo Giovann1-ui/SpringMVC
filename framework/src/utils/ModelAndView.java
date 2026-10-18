@@ -7,9 +7,9 @@ public class ModelAndView {
     private String view;
     private Map<String, Object> attributes;
 
-public ModelAndView() {
-    this.attributes = new HashMap<>();
-}
+    public ModelAndView() {
+        this.attributes = new HashMap<>();
+    }
 
     public ModelAndView(String view) {
         this.view = view;
@@ -28,9 +28,10 @@ public ModelAndView() {
         return this.attributes;
     }
 
-public void addAttribute(String key, Object value) {
-    if (this.attributes == null) {
-        this.attributes = new HashMap<>();
+    public void addAttribute(String key, Object value) {
+        if (this.attributes == null) {
+            this.attributes = new HashMap<>();
+        }
+        this.attributes.put(key, value);
     }
-    this.attributes.put(key, value);
 }

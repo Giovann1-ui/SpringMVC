@@ -6,8 +6,6 @@ SRC_DIR="./src"
 BUILD_DIR="./bin"
 LIB_DIR="./lib"
 
-SERVLET_API_JAR="$LIB_DIR/servlet-api.jar"
-
 echo "================================"
 echo " BUILD FRAMEWORK"
 echo "================================"
@@ -32,7 +30,7 @@ echo ""
 echo "[3] Compilation..."
 
 javac \
--cp "$SERVLET_API_JAR" \
+-cp "$LIB_DIR/*" \
 -d "$BUILD_DIR" \
 @sources.txt
 
@@ -65,3 +63,18 @@ echo "================================"
 echo ""
 echo "Fichier généré :"
 echo "./$APP_NAME.jar"
+
+echo ""
+echo "[5] Copie vers WEB-INF/lib..."
+
+WEB_INF_LIB="../WEB-INF/lib"
+
+if [ ! -d "$WEB_INF_LIB" ]; then
+    echo "❌ Dossier $WEB_INF_LIB introuvable"
+    exit 1
+fi
+
+cp "$APP_NAME.jar" "$WEB_INF_LIB/"
+
+echo "✅ Copié dans $WEB_INF_LIB"
+ls -la "$WEB_INF_LIB"

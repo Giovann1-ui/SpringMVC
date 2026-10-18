@@ -5,10 +5,17 @@ import dto.ControllerResultDTO;
 import dto.UrlMappingDTO;
 
 import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.io.IOException;
+import java.lang.reflect.Field;
+import java.io.IOException;
+
+import jakarta.servlet.http.*;
+import jakarta.servlet.ServletException;
 
 public class ControllerUtils {
 
@@ -17,13 +24,13 @@ public class ControllerUtils {
         try {
             String packagePath = packageName.replace('.', '/');
             ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
-            java.net.URL resource = classLoader.getResource(packagePath);
+            java.net.URL ressource = classLoader.getResource(packagePath);
 
-            if (resource == null) {
+            if (ressource == null) {
                 System.out.println("Le package " + packageName + " est introuvable (ressource vide).");
                 return controllerClasses;
             }
-            java.io.File directory = new java.io.File(resource.toURI());
+            java.io.File directory = new java.io.File(ressource.toURI());
 
             if (directory.exists() && directory.isDirectory()) {
                 java.io.File[] files = directory.listFiles();
@@ -58,6 +65,10 @@ public class ControllerUtils {
         }
 
         return controllerClasses;
+    }
+
+    public static boolean isWebApi(Method m) {
+        return m.isAnnotationPresent(annotation.WebApi.class);
     }
 
     // =========================
@@ -138,6 +149,164 @@ public class ControllerUtils {
             }
         }
 
+        return result;
+    }
+
+    // POUR METHOD AVEC PARAMETRES
+
+    public static Object[] buildArguments(Method method,
+            HttpServletRequest request, HttpServletResponse response) {
+
+        Parameter[] params = method.getParameters();
+        Object[] args = new Object[params.length];
+
+        for (int i = 0; i < params.length; i++) {
+            Parameter p = params[i];
+            Class<?> type = p.getType();
+
+            if (type == HttpServletRequest.class) {
+                args[i] = request;
+                continue;
+            }
+            if (type == HttpServletResponse.class) {
+                args[i] = response;
+                continue;
+            }
+
+            String name;
+            if (p.isAnnotationPresent(annotation.Parameter.class)) {
+                name = p.getAnnotation(annotation.Parameter.class).value();
+            } else if (p.isNamePresent()) {
+                name = p.getName();
+            } else {
+                throw new IllegalStateException(
+                        "Nom de parametre introuvable : utiliser @Parameter ou compiler avec javac -parameters");
+            }
+            if (type == UploadedFile.class) {
+                List<UploadedFile> files = readFiles(request, name);
+                args[i] = files.isEmpty() ? null : files.get(0);
+                continue;
+            }
+            if (isUploadedFileList(p)) {
+                args[i] = readFiles(request, name);
+                continue;
+            }
+
+            if (isSimpleType(type)) {
+                args[i] = convert(request.getParameter(name), type, name);
+            } else {
+                args[i] = buildObject(type, name, request);
+            }
+        }
+        return args;
+    }
+
+    public static Object convert(String raw, Class<?> type, String name) {
+        if (raw == null || raw.isEmpty()) {
+            if (type.isPrimitive()) {
+                throw new IllegalArgumentException("Parametre manquant : " + name);
+            }
+            return null;
+        }
+
+        if (type == String.class)
+            return raw;
+        if (type == int.class || type == Integer.class)
+            return Integer.parseInt(raw);
+        if (type == long.class || type == Long.class)
+            return Long.parseLong(raw);
+        if (type == double.class || type == Double.class)
+            return Double.parseDouble(raw);
+        if (type == float.class || type == Float.class)
+            return Float.parseFloat(raw);
+        if (type == boolean.class || type == Boolean.class)
+            return Boolean.parseBoolean(raw);
+
+        throw new IllegalArgumentException("Type non supporte : " + type.getSimpleName());
+    }
+
+    public static boolean isSimpleType(Class<?> type) {
+        return type.isPrimitive()
+                || type == String.class
+                || type == Integer.class || type == Long.class
+                || type == Double.class || type == Float.class
+                || type == Boolean.class;
+    }
+
+    public static Object buildObject(Class<?> type, String prefix, HttpServletRequest request) {
+        try {
+            Object obj = type.getDeclaredConstructor().newInstance();
+
+            for (Field field : type.getDeclaredFields()) {
+                String paramName = prefix + "." + field.getName();
+                field.setAccessible(true);
+
+                if (isSimpleType(field.getType())) {
+                    String raw = request.getParameter(paramName);
+                    if (raw == null || raw.isEmpty()) {
+                        continue;
+                    }
+                    field.set(obj, convert(raw, field.getType(), paramName));
+
+                } else if (hasParamWithPrefix(request, paramName)) {
+                    // objet imbrique : on se rappelle avec le prefixe allonge
+                    field.set(obj, buildObject(field.getType(), paramName, request));
+                }
+            }
+            return obj;
+
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("Impossible de creer " + type.getSimpleName()
+                    + " : il faut un constructeur sans argument", e);
+        }
+    }
+
+    private static boolean hasParamWithPrefix(HttpServletRequest request, String prefix) {
+        for (String key : request.getParameterMap().keySet()) {
+            if (key.startsWith(prefix + ".")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // UPLOAD DE FICHIER
+
+    private static boolean isUploadedFileList(Parameter p) {
+        if (p.getType() != List.class) {
+            return false;
+        }
+        java.lang.reflect.Type t = p.getParameterizedType();
+        if (!(t instanceof java.lang.reflect.ParameterizedType)) {
+            return false;
+        }
+        java.lang.reflect.Type arg = ((java.lang.reflect.ParameterizedType) t).getActualTypeArguments()[0];
+        return arg == UploadedFile.class;
+    }
+
+    private static List<UploadedFile> readFiles(HttpServletRequest request, String name) {
+        List<UploadedFile> result = new ArrayList<>();
+
+        String contentType = request.getContentType();
+        if (contentType == null || !contentType.toLowerCase().startsWith("multipart/")) {
+            return result;
+        }
+
+        try {
+            for (Part part : request.getParts()) {
+                String submitted = part.getSubmittedFileName();
+
+                // on ignore les autres champs et le "fichier vide" que le navigateur envoie
+                // quand aucun fichier n'est choisi
+                if (!name.equals(part.getName()) || submitted == null || submitted.isEmpty()) {
+                    continue;
+                }
+                result.add(new UploadedFile(submitted, part.getContentType(),
+                        part.getInputStream().readAllBytes()));
+            }
+        } catch (IOException | ServletException e) {
+            throw new IllegalStateException("Lecture des fichiers impossible", e);
+        }
         return result;
     }
 
