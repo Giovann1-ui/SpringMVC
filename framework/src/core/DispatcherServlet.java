@@ -65,6 +65,11 @@ public class DispatcherServlet extends HttpServlet {
 
                 Object[] args = utils.ControllerUtils.buildArguments(method, request, response);
                 Object result = method.invoke(controllerInstance, args);
+
+                // Pour ne pas ecraser l'image
+                if (method.getReturnType().equals(Void.TYPE)) {
+                    return;
+                }
                 // Retour ModelAndView — forward vers JSP
                 if (result instanceof ModelAndView) {
                     ModelAndView mv = (ModelAndView) result;
@@ -91,7 +96,7 @@ public class DispatcherServlet extends HttpServlet {
                     return;
                 }
 
-                // Retour JSON — contrôleur @WebApi sans paramètre
+                // Retour JSON — controleur @WebApi sans paramètre
                 if (utils.ControllerUtils.isWebApi(method)) {
                     response.setContentType("application/json;charset=UTF-8");
                     Gson gson = new Gson();
@@ -100,7 +105,7 @@ public class DispatcherServlet extends HttpServlet {
                     return;
                 }
 
-                // Retour texte simple — contrôleur @Controller
+                // Retour texte simple — controleur @Controller
                 response.setContentType("text/plain");
                 response.getWriter().println("=== ROUTE TROUVEE ===");
                 response.getWriter().println("URL : " + path);
@@ -110,11 +115,7 @@ public class DispatcherServlet extends HttpServlet {
                 response.getWriter().println();
                 response.getWriter().println("=== RESULTAT DE L'EXECUTION ===");
 
-                if (method.getReturnType().equals(Void.TYPE)) {
-                    response.getWriter().println("(méthode void exécutée avec succès)");
-                } else {
-                    response.getWriter().println(String.valueOf(result));
-                }
+                response.getWriter().println(String.valueOf(result));
 
             } catch (Exception e) {
                 response.setContentType("text/plain");

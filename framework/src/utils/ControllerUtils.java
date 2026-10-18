@@ -10,9 +10,12 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.io.IOException;
 import java.lang.reflect.Field;
+import java.io.IOException;
 
 import jakarta.servlet.http.*;
+import jakarta.servlet.ServletException;
 
 public class ControllerUtils {
 
@@ -179,6 +182,15 @@ public class ControllerUtils {
                 throw new IllegalStateException(
                         "Nom de parametre introuvable : utiliser @Parameter ou compiler avec javac -parameters");
             }
+            if (type == UploadedFile.class) {
+                List<UploadedFile> files = readFiles(request, name);
+                args[i] = files.isEmpty() ? null : files.get(0);
+                continue;
+            }
+            if (isUploadedFileList(p)) {
+                args[i] = readFiles(request, name);
+                continue;
+            }
 
             if (isSimpleType(type)) {
                 args[i] = convert(request.getParameter(name), type, name);
@@ -256,6 +268,46 @@ public class ControllerUtils {
             }
         }
         return false;
+    }
+
+    // UPLOAD DE FICHIER
+
+    private static boolean isUploadedFileList(Parameter p) {
+        if (p.getType() != List.class) {
+            return false;
+        }
+        java.lang.reflect.Type t = p.getParameterizedType();
+        if (!(t instanceof java.lang.reflect.ParameterizedType)) {
+            return false;
+        }
+        java.lang.reflect.Type arg = ((java.lang.reflect.ParameterizedType) t).getActualTypeArguments()[0];
+        return arg == UploadedFile.class;
+    }
+
+    private static List<UploadedFile> readFiles(HttpServletRequest request, String name) {
+        List<UploadedFile> result = new ArrayList<>();
+
+        String contentType = request.getContentType();
+        if (contentType == null || !contentType.toLowerCase().startsWith("multipart/")) {
+            return result;
+        }
+
+        try {
+            for (Part part : request.getParts()) {
+                String submitted = part.getSubmittedFileName();
+
+                // on ignore les autres champs et le "fichier vide" que le navigateur envoie
+                // quand aucun fichier n'est choisi
+                if (!name.equals(part.getName()) || submitted == null || submitted.isEmpty()) {
+                    continue;
+                }
+                result.add(new UploadedFile(submitted, part.getContentType(),
+                        part.getInputStream().readAllBytes()));
+            }
+        } catch (IOException | ServletException e) {
+            throw new IllegalStateException("Lecture des fichiers impossible", e);
+        }
+        return result;
     }
 
 }
