@@ -5,10 +5,13 @@ import dto.ControllerResultDTO;
 import dto.UrlMappingDTO;
 
 import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import jakarta.servlet.http.*;
 
 public class ControllerUtils {
 
@@ -52,8 +55,7 @@ public class ControllerUtils {
         List<Class<?>> allClasses = getFiles(packageName);
 
         for (Class<?> clazz : allClasses) {
-            if (clazz.isAnnotationPresent(annotation.Controller.class)
-                    || clazz.isAnnotationPresent(annotation.WebApi.class)) {
+            if (clazz.isAnnotationPresent(annotation.Controller.class)) {
                 controllerClasses.add(clazz);
             }
         }
@@ -144,6 +146,62 @@ public class ControllerUtils {
         }
 
         return result;
+    }
+
+    // POUR METHOD AVEC PARAMETRES
+
+    public static Object[] buildArguments(Method method,
+            HttpServletRequest request, HttpServletResponse response) {
+
+        Parameter[] params = method.getParameters();
+        Object[] args = new Object[params.length];
+
+        for (int i = 0; i < params.length; i++) {
+            Parameter p = params[i];
+            Class<?> type = p.getType();
+
+
+            if(params[i].isAnnotationPresent(annotation.Parameter.class)) {
+                annotation.Parameter paramAnnotation = params[i].getAnnotation(annotation.Parameter.class);
+                String paramName = paramAnnotation.value();
+                args[i] = convert(request.getParameter(paramName), type, paramName);
+            } else if (type == HttpServletRequest.class) {
+                args[i] = request;
+            } else if (type == HttpServletResponse.class) {
+                args[i] = response;
+            } else {
+                if (!p.isNamePresent()) {
+                    throw new IllegalStateException(
+                            "Nom de parametre introuvable : compiler avec javac -parameters");
+                }
+                args[i] = convert(request.getParameter(p.getName()), type, p.getName());
+            }
+        }
+        return args;
+    }
+
+    public static Object convert(String raw, Class<?> type, String name) {
+        if (raw == null || raw.isEmpty()) {
+            if (type.isPrimitive()) {
+                throw new IllegalArgumentException("Parametre manquant : " + name);
+            }
+            return null;
+        }
+
+        if (type == String.class)
+            return raw;
+        if (type == int.class || type == Integer.class)
+            return Integer.parseInt(raw);
+        if (type == long.class || type == Long.class)
+            return Long.parseLong(raw);
+        if (type == double.class || type == Double.class)
+            return Double.parseDouble(raw);
+        if (type == float.class || type == Float.class)
+            return Float.parseFloat(raw);
+        if (type == boolean.class || type == Boolean.class)
+            return Boolean.parseBoolean(raw);
+
+        throw new IllegalArgumentException("Type non supporte : " + type.getSimpleName());
     }
 
 }
