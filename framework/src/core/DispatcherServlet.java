@@ -66,6 +66,12 @@ public class DispatcherServlet extends HttpServlet {
                 Object[] args = utils.ControllerUtils.buildArguments(method, request, response);
                 Object result = method.invoke(controllerInstance, args);
 
+                for (Object arg : args) {
+                    if (arg instanceof utils.MySession) {
+                        utils.ControllerUtils.saveSession((utils.MySession) arg, request);
+                    }
+                }
+
                 // Pour ne pas ecraser l'image
                 if (method.getReturnType().equals(Void.TYPE)) {
                     return;

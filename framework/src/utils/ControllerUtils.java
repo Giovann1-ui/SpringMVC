@@ -7,12 +7,15 @@ import dto.UrlMappingDTO;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.util.ArrayList;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.io.IOException;
 import java.lang.reflect.Field;
-import java.io.IOException;
+import jakarta.servlet.http.HttpSession;
+
 
 import jakarta.servlet.http.*;
 import jakarta.servlet.ServletException;
@@ -173,6 +176,11 @@ public class ControllerUtils {
                 continue;
             }
 
+            if (type == MySession.class) {
+                args[i] = loadSession(request);
+                continue;
+            }
+
             String name;
             if (p.isAnnotationPresent(annotation.Parameter.class)) {
                 name = p.getAnnotation(annotation.Parameter.class).value();
@@ -308,6 +316,57 @@ public class ControllerUtils {
             throw new IllegalStateException("Lecture des fichiers impossible", e);
         }
         return result;
+    }
+
+    // Controler la session
+
+    public static MySession loadSession(HttpServletRequest request) {
+        Map<String, Object> attrs = new HashMap<>();
+
+        HttpSession hs = request.getSession(false); // ne cree pas de session
+        if (hs != null) {
+            Enumeration<String> names = hs.getAttributeNames();
+            while (names.hasMoreElements()) {
+                String name = names.nextElement();
+                attrs.put(name, hs.getAttribute(name));
+            }
+        }
+        return new MySession(attrs);
+    }
+
+    public static void saveSession(MySession ms, HttpServletRequest request) {
+        HttpSession hs = request.getSession(false);
+        Map<String, Object> initial = ms.getInitialAttributes();
+        Map<String, Object> current = ms.getAttributes();
+
+        if (ms.isInvalidated()) {
+            if (hs != null) {
+                hs.invalidate();
+            }
+            hs = null;
+            initial = new HashMap<>(); // la nouvelle session part de zero
+        }
+
+        if (hs == null) {
+            if (current.isEmpty()) {
+                return; // rien a ecrire : pas de session creee pour rien
+            }
+            hs = request.getSession(); // nouvelle session
+        }
+
+        // cles retirees par le developpeur
+        for (String key : initial.keySet()) {
+            if (!current.containsKey(key)) {
+                hs.removeAttribute(key);
+            }
+        }
+
+        // cles ajoutees ou modifiees
+        for (Map.Entry<String, Object> e : current.entrySet()) {
+            if (!initial.containsKey(e.getKey()) || !Objects.equals(initial.get(e.getKey()), e.getValue())) {
+                hs.setAttribute(e.getKey(), e.getValue());
+            }
+        }
     }
 
 }
