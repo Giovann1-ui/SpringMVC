@@ -22,3 +22,6 @@ create table if NOT EXISTS fichier (
     extension VARCHAR(20),
     contenu LONGBLOB NOT NULL
 );
+
+
+ALTER TABLE user ADD COLUMN role VARCHAR(30) NOT NULL DEFAULT 'user';

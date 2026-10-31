@@ -35,6 +35,10 @@
         <param-name>authLoginUrl</param-name>
         <param-value>/app/login</param-value>
     </context-param>
+    <context-param>
+    <param-name>authRoleKey</param-name>
+        <param-value>role</param-value>
+    </context-param>
 
     <listener>
         <listener-class>listener.AppListener</listener-class>

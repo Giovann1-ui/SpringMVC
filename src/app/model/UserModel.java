@@ -19,6 +19,9 @@ public class UserModel {
     @JoinColumn(name = "adresse_id")
     private AdresseModel adresse;
 
+    @Column(name = "role")
+    private String role = "user";
+
     public Long getId() {
         return id;
     }
@@ -49,6 +52,14 @@ public class UserModel {
 
     public void setAdresse(AdresseModel adresse) {
         this.adresse = adresse;
+    }
+
+    public String getRole() {
+        return role;
+    }
+
+    public void setRole(String role) {
+        this.role = role;
     }
 
     public UserModel(String username, String password, AdresseModel adresse) {

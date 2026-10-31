@@ -103,8 +103,9 @@ public class SessionController {
             return mv;
         }
 
-        session.invalidate(); // nouvel identifiant de session a chaque connexion
+        session.invalidate();
         session.add("user", user.getUsername());
+        session.add("role", user.getRole());
 
         ModelAndView mv = new ModelAndView("profil");
         mv.addAttribute("username", user.getUsername());
@@ -117,10 +118,17 @@ public class SessionController {
         return new ModelAndView("login");
     }
 
+    @Auth
     @UrlMapping(url = "/profil", method = "GET")
     public ModelAndView profil(MySession session) {
         ModelAndView mv = new ModelAndView("profil");
         mv.addAttribute("username", session.get("user")); // null si personne n'est connecte
         return mv;
+    }
+
+    @Auth(roles = "admin")
+    @UrlMapping(url = "/admin", method = "GET")
+    public String admin(MySession session) {
+        return "Zone admin, bienvenue " + session.get("user");
     }
 }
