@@ -9,7 +9,7 @@ create table adresse (
 );
 
 create table IF NOT EXISTS user (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,   
     username VARCHAR(255) NOT NULL,
     password VARCHAR(255) NOT NULL,
     adresse_id BIGINT,

@@ -15,12 +15,10 @@
         <param-name>contextConfigLocation</param-name>
         <param-value>/WEB-INF/applicationContext.xml</param-value>
     </context-param>
-
     <context-param>
         <param-name>controller</param-name>
         <param-value>app.controllers</param-value>
     </context-param>
-
     <context-param>
         <param-name>pafSource</param-name>
         <param-value>WEB-INF/</param-value>
@@ -28,6 +26,14 @@
     <context-param>
         <param-name>extension</param-name>
         <param-value>.jsp</param-value>
+    </context-param>
+    <context-param>
+    <param-name>authSessionKey</param-name>
+        <param-value>user</param-value>
+    </context-param>
+    <context-param>
+        <param-name>authLoginUrl</param-name>
+        <param-value>/app/login</param-value>
     </context-param>
 
     <listener>

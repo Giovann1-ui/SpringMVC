@@ -12,11 +12,14 @@ import utils.ModelAndView;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.*;
 import com.google.gson.Gson;
+import annotation.Auth;
 
 public class DispatcherServlet extends HttpServlet {
     List<Class<?>> controllerClasses = new ArrayList<>();
     Map<UrlMappingDTO, ControllerResultDTO> map;
     Map<Class<?>, Object> controllerInstances;
+    String authSessionKey;
+    String authLoginUrl;
 
     @Override
     @SuppressWarnings("unchecked")
@@ -24,6 +27,11 @@ public class DispatcherServlet extends HttpServlet {
         map = (Map<UrlMappingDTO, ControllerResultDTO>) getServletContext().getAttribute("urlMap");
         controllerClasses = (List<Class<?>>) getServletContext().getAttribute("controllerClasses");
         controllerInstances = (Map<Class<?>, Object>) getServletContext().getAttribute("controllerInstances");
+        String key = getServletContext().getInitParameter("authSessionKey");
+        authSessionKey = (key != null && !key.isEmpty()) ? key : "user";
+
+        String login = getServletContext().getInitParameter("authLoginUrl");
+        authLoginUrl = (login != null && !login.isEmpty()) ? login : "/app/login";
 
         if (map == null || controllerClasses == null || controllerInstances == null) {
             throw new ServletException(
@@ -62,7 +70,24 @@ public class DispatcherServlet extends HttpServlet {
 
             try {
                 Object controllerInstance = controllerInstances.get(controllerClasse);
+                
+                Auth auth = method.getAnnotation(Auth.class);
+                if (auth == null) {
+                    auth = controllerClasse.getAnnotation(Auth.class);
+                }
+                if (auth != null) {
+                    HttpSession hs = request.getSession(false); // ne cree pas de session
+                    boolean connecte = hs != null && hs.getAttribute(authSessionKey) != null;
 
+                    if (!connecte) {
+                        if (utils.ControllerUtils.isWebApi(method)) {
+                            response.sendError(HttpServletResponse.SC_UNAUTHORIZED); // 401 pour une API JSON
+                        } else {
+                            response.sendRedirect(request.getContextPath() + authLoginUrl);
+                        }
+                        return;
+                    }
+                }
                 Object[] args = utils.ControllerUtils.buildArguments(method, request, response);
                 Object result = method.invoke(controllerInstance, args);
 

@@ -72,7 +72,6 @@ public class FirstBaseController {
             UserModel user = new UserModel(personne.getUsername(), personne.getPassword(), adresse);
             userRepository.save(user);
         }
-
         return mv;
     }
 
@@ -99,6 +98,4 @@ public class FirstBaseController {
 
         return "Utilisateur enregistre : " + personne.getUsername() + " (" + etatAdresse + ")";
     }
-
-   
 }
