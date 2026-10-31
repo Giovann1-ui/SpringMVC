@@ -19,6 +19,7 @@ public class DispatcherServlet extends HttpServlet {
     Map<UrlMappingDTO, ControllerResultDTO> map;
     Map<Class<?>, Object> controllerInstances;
     String authSessionKey;
+    String authRoleKey;
     String authLoginUrl;
 
     @Override
@@ -29,6 +30,9 @@ public class DispatcherServlet extends HttpServlet {
         controllerInstances = (Map<Class<?>, Object>) getServletContext().getAttribute("controllerInstances");
         String key = getServletContext().getInitParameter("authSessionKey");
         authSessionKey = (key != null && !key.isEmpty()) ? key : "user";
+
+        String roleKey = getServletContext().getInitParameter("authRoleKey");
+        authRoleKey = (roleKey != null && !roleKey.isEmpty()) ? roleKey : "role";
 
         String login = getServletContext().getInitParameter("authLoginUrl");
         authLoginUrl = (login != null && !login.isEmpty()) ? login : "/app/login";
@@ -70,24 +74,43 @@ public class DispatcherServlet extends HttpServlet {
 
             try {
                 Object controllerInstance = controllerInstances.get(controllerClasse);
-                
+
                 Auth auth = method.getAnnotation(Auth.class);
                 if (auth == null) {
                     auth = controllerClasse.getAnnotation(Auth.class);
                 }
                 if (auth != null) {
-                    HttpSession hs = request.getSession(false); // ne cree pas de session
+                    HttpSession hs = request.getSession(false);
                     boolean connecte = hs != null && hs.getAttribute(authSessionKey) != null;
 
+                    // 1. pas connecte : 401 pour une API, sinon page de connexion
                     if (!connecte) {
                         if (utils.ControllerUtils.isWebApi(method)) {
-                            response.sendError(HttpServletResponse.SC_UNAUTHORIZED); // 401 pour une API JSON
+                            response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
                         } else {
                             response.sendRedirect(request.getContextPath() + authLoginUrl);
                         }
                         return;
                     }
+
+                    // 2. connecte, mais le role est-il accepte ?
+                    String[] roles = auth.roles();
+                    if (roles.length > 0) {
+                        Object roleUtilisateur = hs.getAttribute(authRoleKey);
+                        boolean autorise = false;
+                        for (String role : roles) {
+                            if (role.equals(roleUtilisateur)) {
+                                autorise = true;
+                                break;
+                            }
+                        }
+                        if (!autorise) {
+                            response.sendError(HttpServletResponse.SC_FORBIDDEN); // 403
+                            return;
+                        }
+                    }
                 }
+                
                 Object[] args = utils.ControllerUtils.buildArguments(method, request, response);
                 Object result = method.invoke(controllerInstance, args);
 
